@@ -1,43 +1,47 @@
-# AI Football Digital Twin
+# AI Football Digital Twin — 7-Level Platform Prototype
 
-A smartphone-based football digital twin concept that connects multi-camera capture and panorama reconstruction with future AI vision, player tracking, match analytics, simulation, and prediction.
+This branch rebuilds the web prototype around a seven-level product evolution:
 
-## Current demo
+1. AI Video Analysis
+2. Digital Twin Platform
+3. Simulation Platform
+4. Predictive Platform
+5. Autonomous AI Coach
+6. Football Operating System
+7. Global Football Network
 
-The repository contains a standalone interactive `index.html` suitable for GitHub Pages. It includes:
+## Prototype modules
 
-- Platform overview
-- Live field twin with 22 simulated players and a ball
-- Match time slider
-- AI vision concept screen
-- Match analytics concept screen
-- Tactical what-if simulation
-- Responsive desktop and mobile layout
+- Command Center
+- Seven-Level Roadmap
+- Multi-Camera QR onboarding
+- Live Match Digital Twin
+- Scenario Simulation
+- Predictive Intelligence
+- Autonomous AI Coach
+- Football Operating System
+- Global Football Network
+- Seven-Layer Technical Architecture
 
-## Evidence boundary
+## Source-aligned foundation
 
-The source MVP document supports the camera capture, recording, hardware, alignment, and panorama pipeline. Player detection, tracking, analytics, simulation, and prediction are presented as clearly labeled concept layers for future development.
+The prototype preserves the supplied project scope, including:
 
-## Branch workflow
+- Player and Coach Passport
+- Video upload and library
+- AI analysis overview
+- 1–3 phone capture
+- LEFT/CENTER/RIGHT camera roles
+- Camera alignment and panorama workflow
+- Multi-camera tracking roadmap
+- Performance score, speed, distance, sprint, shot and heat-map analytics
+- AI coaching insights and recommended drills
+- Coach network and marketplace direction
 
-- `main`: stable version
-- `develop-football-twin`: active development and review
+## Static-demo boundary
 
-## GitHub Pages
+GitHub Pages can host the dashboard, generate QR codes and open the phone camera page over HTTPS. Remote phone-video return, synchronization, panorama stitching and real analytics require backend, WebRTC, computer-vision and data services.
 
-After merging the development pull request, open **Settings → Pages**, select **Deploy from a branch**, and choose:
+## Review branch
 
-- Branch: `main`
-- Folder: `/ (root)`
-
-The expected public address is:
-
-`https://steve-yang-kr.github.io/AI-Football-Digital-Twin/`
-
-## Next development priorities
-
-1. Separate CSS and JavaScript into maintainable modules.
-2. Add the source-supported camera and panorama screens.
-3. Add a real QR/WebRTC connection service for multiple phones.
-4. Integrate panorama stitching and recording storage.
-5. Add validated AI detection and tracking models.
+`rebuild/7-level-platform`
