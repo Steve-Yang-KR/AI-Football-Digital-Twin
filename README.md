@@ -1,47 +1,82 @@
-# AI Football Digital Twin — 7-Level Platform Prototype
+# Football Digital Twin OS v2
 
-This branch rebuilds the web prototype around a seven-level product evolution:
+This branch restarts the project as a working Python application instead of another static marketing page.
 
-1. AI Video Analysis
-2. Digital Twin Platform
-3. Simulation Platform
-4. Predictive Platform
-5. Autonomous AI Coach
-6. Football Operating System
-7. Global Football Network
+## Product definition
 
-## Prototype modules
+Use ordinary smartphones to observe a football match, maintain a live digital model of players, ball and team behavior, and simulate decisions before coaches act in the real world.
 
-- Command Center
-- Seven-Level Roadmap
-- Multi-Camera QR onboarding
-- Live Match Digital Twin
-- Scenario Simulation
-- Predictive Intelligence
-- Autonomous AI Coach
-- Football Operating System
-- Global Football Network
-- Seven-Layer Technical Architecture
+The Digital Twin loop is:
 
-## Source-aligned foundation
+1. Physical match
+2. Multi-camera observation
+3. Synchronization and calibration
+4. Player / ball / event tracking
+5. Live Match Digital Twin
+6. Tactical simulation
+7. Coach decision support
 
-The prototype preserves the supplied project scope, including:
+## What works in this MVP
 
-- Player and Coach Passport
-- Video upload and library
-- AI analysis overview
-- 1–3 phone capture
-- LEFT/CENTER/RIGHT camera roles
-- Camera alignment and panorama workflow
-- Multi-camera tracking roadmap
-- Performance score, speed, distance, sprint, shot and heat-map analytics
-- AI coaching insights and recommended drills
-- Coach network and marketplace direction
+- FastAPI backend
+- Live WebSocket stream for a simulated 22-player Match Digital Twin
+- Functional dashboard navigation
+- Live player and ball movement on a regulation-ratio pitch
+- Current possession, xG, pressing and confidence metrics
+- Python API for creating camera sessions
+- Python what-if simulation API
+- Interactive formation, press, tempo, width and fatigue controls
+- Clear explanation of Player Twin, Match Twin and Team Twin
+- Render deployment configuration
 
-## Static-demo boundary
+## What is simulated
 
-GitHub Pages can host the dashboard, generate QR codes and open the phone camera page over HTTPS. Remote phone-video return, synchronization, panorama stitching and real analytics require backend, WebRTC, computer-vision and data services.
+The current WebSocket data and tactical predictions are transparent demo logic. They are not yet produced by real computer vision or a trained football prediction model.
 
-## Review branch
+## Next engineering milestone
 
-`rebuild/7-level-platform`
+Replace the simulation data source with the real capture pipeline:
+
+- phone camera registration
+- WebRTC video return
+- video synchronization
+- camera calibration
+- panorama or shared field coordinates
+- player and ball detection
+- multi-camera tracking
+- persistent match state
+
+## Run locally
+
+```bash
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app:app --reload
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+API documentation:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+## Deployment note
+
+GitHub Pages cannot run Python, FastAPI or WebSockets. Deploy this branch to a Python web host such as Render, Railway, Fly.io, Azure, AWS or Google Cloud. `render.yaml` is included for a simple Render deployment.
+
+## Branch
+
+`feature/football-digital-twin-python-v2`
