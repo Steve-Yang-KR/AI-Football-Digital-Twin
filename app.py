@@ -6,16 +6,18 @@ import random
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="Football Digital Twin OS", version="2.0.0")
+app = FastAPI(title="Football Digital Twin OS", version="2.1.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+Role = Literal["LEFT", "CENTER", "RIGHT"]
 
 
 class SimulationRequest(BaseModel):
@@ -26,19 +28,36 @@ class SimulationRequest(BaseModel):
     fatigue: int = Field(31, ge=0, le=100)
 
 
+class CameraStatus(BaseModel):
+    role: Role
+    connected: bool = True
+    battery: int | None = Field(default=None, ge=0, le=100)
+    fps: int = Field(default=30, ge=0, le=120)
+    latency: int = Field(default=0, ge=0, le=10000)
+    device: str = "mobile-browser"
+
+
 SESSIONS: dict[str, dict[str, Any]] = {}
 
 
-def new_session() -> dict[str, Any]:
+def empty_camera() -> dict[str, Any]:
+    return {
+        "connected": False,
+        "battery": None,
+        "fps": 0,
+        "latency": 0,
+        "device": None,
+        "last_seen": None,
+    }
+
+
+def new_session(base_url: str) -> dict[str, Any]:
     code = secrets.token_hex(3).upper()
     session = {
         "code": code,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "cameras": {
-            "LEFT": {"connected": False, "battery": 0, "fps": 0, "latency": 0},
-            "CENTER": {"connected": False, "battery": 0, "fps": 0, "latency": 0},
-            "RIGHT": {"connected": False, "battery": 0, "fps": 0, "latency": 0},
-        },
+        "join_url": f"{base_url.rstrip('/')}/phone/{code}",
+        "cameras": {role: empty_camera() for role in ("LEFT", "CENTER", "RIGHT")},
     }
     SESSIONS[code] = session
     return session
@@ -53,14 +72,11 @@ def twin_frame(tick: int) -> dict[str, Any]:
         x = max(3, min(97, base_x + math.sin((tick + i * 7) / 18) * 4.2))
         y = max(4, min(96, base_y + math.cos((tick + i * 11) / 21) * 5.6))
         players.append({"id": i + 1, "team": team, "x": round(x, 2), "y": round(y, 2)})
-
-    ball_x = 50 + math.sin(tick / 9) * 24
-    ball_y = 50 + math.cos(tick / 12) * 19
     possession = round(50 + math.sin(tick / 26) * 11)
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "players": players,
-        "ball": {"x": round(ball_x, 2), "y": round(ball_y, 2)},
+        "ball": {"x": round(50 + math.sin(tick / 9) * 24, 2), "y": round(50 + math.cos(tick / 12) * 19, 2)},
         "metrics": {
             "possession_a": possession,
             "possession_b": 100 - possession,
@@ -77,20 +93,42 @@ async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/phone/{code}", response_class=HTMLResponse)
+async def phone_camera(request: Request, code: str) -> HTMLResponse:
+    code = code.upper()
+    if code not in SESSIONS:
+        raise HTTPException(status_code=404, detail="Camera session not found")
+    return templates.TemplateResponse("phone.html", {"request": request, "code": code})
+
+
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "football-digital-twin-os"}
 
 
 @app.post("/api/sessions")
-async def create_session() -> dict[str, Any]:
-    return new_session()
+async def create_session(request: Request) -> dict[str, Any]:
+    return new_session(str(request.base_url))
 
 
 @app.get("/api/sessions/{code}")
 async def get_session(code: str) -> dict[str, Any]:
     code = code.upper()
-    return SESSIONS.get(code, {"code": code, "status": "not_found"})
+    if code not in SESSIONS:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return SESSIONS[code]
+
+
+@app.post("/api/sessions/{code}/camera")
+async def update_camera(code: str, payload: CameraStatus) -> dict[str, Any]:
+    code = code.upper()
+    session = SESSIONS.get(code)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    camera = session["cameras"][payload.role]
+    camera.update(payload.model_dump())
+    camera["last_seen"] = datetime.now(timezone.utc).isoformat()
+    return {"ok": True, "code": code, "camera": camera}
 
 
 @app.post("/api/simulate")
@@ -101,7 +139,6 @@ async def simulate(payload: SimulationRequest) -> dict[str, Any]:
     xg = max(0.35, min(3.4, 0.72 + attacking_index / 72 - payload.fatigue / 210))
     transition_risk = max(7, min(91, 16 + payload.press_height * 0.42 + payload.tempo * 0.25 - payload.width * 0.14))
     confidence = max(0.55, min(0.97, 0.92 - abs(payload.press_height - 62) / 400 - payload.fatigue / 700))
-
     recommendation = "Maintain structure"
     if transition_risk > 63:
         recommendation = "Lower the press or keep one midfielder behind the ball"
@@ -109,7 +146,6 @@ async def simulate(payload: SimulationRequest) -> dict[str, Any]:
         recommendation = "Reduce tempo and prepare a substitution"
     elif win_probability > 63:
         recommendation = "Sustain pressure and attack the weak-side half-space"
-
     return {
         "formation": payload.formation,
         "win_probability": round(win_probability, 1),
