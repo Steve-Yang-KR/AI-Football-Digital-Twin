@@ -3,6 +3,6 @@ services:
     name: football-digital-twin-os
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn hologram_app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn v3_app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     autoDeploy: true
