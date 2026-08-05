@@ -29,3 +29,8 @@ async def add_hologram_link_to_panorama(request: Request, call_next):
 @app.get('/hologram', response_class=HTMLResponse)
 async def hologram(request: Request) -> HTMLResponse:
     return templates.TemplateResponse('hologram.html', {'request': request})
+
+
+@app.get('/platform', response_class=HTMLResponse)
+async def platform_homepage(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse('platform.html', {'request': request})
