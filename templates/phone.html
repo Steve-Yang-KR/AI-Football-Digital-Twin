@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Connect Phone Camera</title>
+<style>
+:root{--bg:#07131f;--panel:#10243a;--ink:#f4f8fc;--muted:#9fb2c2;--blue:#3b91ff;--green:#31c77a;--line:#29435c;--red:#ff6b6b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07131f,#0c1c2c);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;min-height:100vh;padding:18px}.wrap{max-width:720px;margin:auto}.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}.eyebrow{font-size:11px;font-weight:900;color:#72b5ff;letter-spacing:.12em}.code{font-size:28px;font-weight:950;letter-spacing:.15em;margin:8px 0}.roles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.role{border:1px solid var(--line);background:#0b1c2d;color:var(--ink);padding:13px 8px;border-radius:12px;font-weight:900}.role.active{background:var(--blue);border-color:var(--blue)}video{width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;object-fit:cover}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.primary,.ghost{padding:13px;border-radius:11px;font-weight:900}.primary{border:0;background:var(--green);color:#062116}.ghost{border:1px solid var(--line);background:transparent;color:var(--ink)}.status{padding:11px;border-radius:11px;background:#0b1c2d;color:var(--muted);font-size:13px}.status.ok{color:#bdf6d5;border:1px solid rgba(49,199,122,.35)}.status.error{color:#ffd0d0;border:1px solid rgba(255,107,107,.35)}small{color:var(--muted);line-height:1.5;display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="eyebrow">FOOTBALL DIGITAL TWIN CAMERA</div>
+    <div class="code">{{ code }}</div>
+    <small>Select this phone's position, then allow camera access. This MVP confirms the phone camera and reports connection status to the command center.</small>
+  </div>
+
+  <div class="card">
+    <div class="roles">
+      <button class="role" data-role="LEFT">LEFT</button>
+      <button class="role active" data-role="CENTER">CENTER</button>
+      <button class="role" data-role="RIGHT">RIGHT</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <video id="preview" autoplay playsinline muted></video>
+    <div class="actions">
+      <button class="primary" id="start">Start Camera</button>
+      <button class="ghost" id="stop">Stop</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="status" class="status">Waiting for camera permission.</div>
+  </div>
+</div>
+<script>
+const code = {{ code | tojson }};
+let role = 'CENTER';
+let stream = null;
+let heartbeat = null;
+const preview = document.getElementById('preview');
+const statusBox = document.getElementById('status');
+
+document.querySelectorAll('.role').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.role').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  role = btn.dataset.role;
+}));
+
+async function batteryLevel(){
+  try {
+    if (!navigator.getBattery) return null;
+    const b = await navigator.getBattery();
+    return Math.round(b.level * 100);
+  } catch { return null; }
+}
+
+async function report(connected){
+  const battery = await batteryLevel();
+  await fetch(`/api/sessions/${code}/camera`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({role, connected, battery, fps: connected ? 30 : 0, latency:0, device:navigator.userAgent.slice(0,120)})
+  });
+}
+
+async function startCamera(){
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+    preview.srcObject = stream;
+    await report(true);
+    clearInterval(heartbeat);
+    heartbeat = setInterval(() => report(true).catch(()=>{}), 5000);
+    statusBox.className = 'status ok';
+    statusBox.textContent = `${role} camera connected. Keep this page open.`;
+  } catch (err) {
+    statusBox.className = 'status error';
+    statusBox.textContent = `Camera could not start: ${err.message}`;
+  }
+}
+
+async function stopCamera(){
+  clearInterval(heartbeat);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  preview.srcObject = null;
+  await report(false).catch(()=>{});
+  statusBox.className = 'status';
+  statusBox.textContent = 'Camera stopped.';
+}
+
+document.getElementById('start').addEventListener('click', startCamera);
+document.getElementById('stop').addEventListener('click', stopCamera);
+window.addEventListener('pagehide', () => { if(stream) navigator.sendBeacon?.(`/api/sessions/${code}/camera`); });
+</script>
+</body>
+</html>
