@@ -14,10 +14,11 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="Football Digital Twin OS", version="2.1.0")
+app = FastAPI(title="Football Digital Twin OS", version="2.2.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 Role = Literal["LEFT", "CENTER", "RIGHT"]
+ROLES = ("LEFT", "CENTER", "RIGHT")
 
 
 class SimulationRequest(BaseModel):
@@ -38,17 +39,12 @@ class CameraStatus(BaseModel):
 
 
 SESSIONS: dict[str, dict[str, Any]] = {}
+SIGNAL_PEERS: dict[str, dict[str, dict[str, WebSocket]]] = {}
 
 
 def empty_camera() -> dict[str, Any]:
-    return {
-        "connected": False,
-        "battery": None,
-        "fps": 0,
-        "latency": 0,
-        "device": None,
-        "last_seen": None,
-    }
+    return {"connected": False, "streaming": False, "battery": None, "fps": 0,
+            "latency": 0, "device": None, "last_seen": None}
 
 
 def new_session(base_url: str) -> dict[str, Any]:
@@ -57,9 +53,10 @@ def new_session(base_url: str) -> dict[str, Any]:
         "code": code,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "join_url": f"{base_url.rstrip('/')}/phone/{code}",
-        "cameras": {role: empty_camera() for role in ("LEFT", "CENTER", "RIGHT")},
+        "cameras": {role: empty_camera() for role in ROLES},
     }
     SESSIONS[code] = session
+    SIGNAL_PEERS[code] = {role: {} for role in ROLES}
     return session
 
 
@@ -74,17 +71,13 @@ def twin_frame(tick: int) -> dict[str, Any]:
         players.append({"id": i + 1, "team": team, "x": round(x, 2), "y": round(y, 2)})
     possession = round(50 + math.sin(tick / 26) * 11)
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "players": players,
+        "timestamp": datetime.now(timezone.utc).isoformat(), "players": players,
         "ball": {"x": round(50 + math.sin(tick / 9) * 24, 2), "y": round(50 + math.cos(tick / 12) * 19, 2)},
-        "metrics": {
-            "possession_a": possession,
-            "possession_b": 100 - possession,
-            "xg_a": round(1.18 + abs(math.sin(tick / 40)) * 0.72, 2),
-            "xg_b": round(0.76 + abs(math.cos(tick / 43)) * 0.61, 2),
-            "pressing": "HIGH" if tick % 40 < 22 else "MID BLOCK",
-            "confidence": round(0.88 + abs(math.sin(tick / 31)) * 0.08, 2),
-        },
+        "metrics": {"possession_a": possession, "possession_b": 100 - possession,
+                    "xg_a": round(1.18 + abs(math.sin(tick / 40)) * 0.72, 2),
+                    "xg_b": round(0.76 + abs(math.cos(tick / 43)) * 0.61, 2),
+                    "pressing": "HIGH" if tick % 40 < 22 else "MID BLOCK",
+                    "confidence": round(0.88 + abs(math.sin(tick / 31)) * 0.08, 2)}
     }
 
 
@@ -114,9 +107,17 @@ async def create_session(request: Request) -> dict[str, Any]:
 @app.get("/api/sessions/{code}")
 async def get_session(code: str) -> dict[str, Any]:
     code = code.upper()
-    if code not in SESSIONS:
+    session = SESSIONS.get(code)
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    return SESSIONS[code]
+    now = datetime.now(timezone.utc)
+    for camera in session["cameras"].values():
+        if camera["last_seen"]:
+            last = datetime.fromisoformat(camera["last_seen"])
+            if (now - last).total_seconds() > 12:
+                camera["connected"] = False
+                camera["streaming"] = False
+    return session
 
 
 @app.post("/api/sessions/{code}/camera")
@@ -129,6 +130,52 @@ async def update_camera(code: str, payload: CameraStatus) -> dict[str, Any]:
     camera.update(payload.model_dump())
     camera["last_seen"] = datetime.now(timezone.utc).isoformat()
     return {"ok": True, "code": code, "camera": camera}
+
+
+@app.websocket("/ws/signal/{code}/{role}/{peer_type}")
+async def signal_socket(websocket: WebSocket, code: str, role: str, peer_type: str) -> None:
+    code, role, peer_type = code.upper(), role.upper(), peer_type.lower()
+    if code not in SESSIONS or role not in ROLES or peer_type not in {"phone", "viewer"}:
+        await websocket.close(code=4404)
+        return
+    await websocket.accept()
+    peers = SIGNAL_PEERS.setdefault(code, {r: {} for r in ROLES})[role]
+    old = peers.get(peer_type)
+    if old:
+        try:
+            await old.close(code=4000)
+        except Exception:
+            pass
+    peers[peer_type] = websocket
+    other_type = "viewer" if peer_type == "phone" else "phone"
+    other = peers.get(other_type)
+    if other:
+        await other.send_json({"type": "peer-ready", "peer": peer_type})
+        await websocket.send_json({"type": "peer-ready", "peer": other_type})
+    try:
+        while True:
+            message = await websocket.receive_json()
+            target = peers.get(other_type)
+            if target:
+                await target.send_json(message)
+            if peer_type == "phone" and message.get("type") == "streaming":
+                SESSIONS[code]["cameras"][role]["streaming"] = bool(message.get("value"))
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if peers.get(peer_type) is websocket:
+            peers.pop(peer_type, None)
+        if peer_type == "phone":
+            camera = SESSIONS.get(code, {}).get("cameras", {}).get(role)
+            if camera:
+                camera["connected"] = False
+                camera["streaming"] = False
+        other = peers.get(other_type)
+        if other:
+            try:
+                await other.send_json({"type": "peer-left", "peer": peer_type})
+            except Exception:
+                pass
 
 
 @app.post("/api/simulate")
@@ -146,14 +193,9 @@ async def simulate(payload: SimulationRequest) -> dict[str, Any]:
         recommendation = "Reduce tempo and prepare a substitution"
     elif win_probability > 63:
         recommendation = "Sustain pressure and attack the weak-side half-space"
-    return {
-        "formation": payload.formation,
-        "win_probability": round(win_probability, 1),
-        "expected_goals": round(xg, 2),
-        "transition_risk": round(transition_risk, 1),
-        "confidence": round(confidence, 2),
-        "recommendation": recommendation,
-    }
+    return {"formation": payload.formation, "win_probability": round(win_probability, 1),
+            "expected_goals": round(xg, 2), "transition_risk": round(transition_risk, 1),
+            "confidence": round(confidence, 2), "recommendation": recommendation}
 
 
 @app.websocket("/ws/twin")
