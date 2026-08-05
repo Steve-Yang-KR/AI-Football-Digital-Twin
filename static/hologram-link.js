@@ -1,4 +1,28 @@
 document.addEventListener('DOMContentLoaded',()=>{
+  const nav=document.querySelector('.nav');
+  if(nav&&!document.getElementById('platformVisionLink')){
+    const platformButton=document.createElement('button');
+    platformButton.id='platformVisionLink';
+    platformButton.type='button';
+    platformButton.textContent='🌐 Platform Vision';
+    platformButton.addEventListener('click',()=>{window.location.href='/platform';});
+    nav.appendChild(platformButton);
+  }
+
+  const overview=document.getElementById('overview');
+  if(overview&&!document.getElementById('openPlatformVision')){
+    const heroActions=overview.querySelector('.hero .actions');
+    if(heroActions){
+      const visionButton=document.createElement('button');
+      visionButton.id='openPlatformVision';
+      visionButton.className='secondary';
+      visionButton.type='button';
+      visionButton.textContent='Explore Full Platform Vision';
+      visionButton.addEventListener('click',()=>{window.location.href='/platform';});
+      heroActions.appendChild(visionButton);
+    }
+  }
+
   const panoSection=document.getElementById('panorama');
   if(!panoSection||document.getElementById('panoHologramSplit'))return;
   const actions=panoSection.querySelector('.actions');
