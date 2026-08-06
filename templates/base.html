@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ title }} · Football Digital Twin OS</title>
+  <link rel="stylesheet" href="/static/css/v3.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+    {% include "partials/sidebar.html" %}
+    <main class="workspace">
+      {% include "partials/topbar.html" %}
+      <section class="page-content">{% block content %}{% endblock %}</section>
+    </main>
+  </div>
+  <script src="/static/js/v3.js" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

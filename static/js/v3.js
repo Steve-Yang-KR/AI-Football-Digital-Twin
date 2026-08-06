@@ -1,0 +1,1 @@
+document.addEventListener('DOMContentLoaded',async()=>{const el=document.getElementById('healthText');if(!el)return;try{const r=await fetch('/api/health');if(!r.ok)throw new Error();const data=await r.json();el.textContent=data.status==='ok'?'SYSTEM LIVE':'SYSTEM DEGRADED';}catch{el.textContent='SYSTEM OFFLINE';}});
