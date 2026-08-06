@@ -1,0 +1,8 @@
+import {initNavigation,initContent} from './content.js';
+import {initCameras} from './cameras.js';
+import {initPanorama} from './panorama.js';
+import {initTwin} from './twin.js';
+import {initSimulation} from './simulation.js';
+
+const initializers=[initNavigation,initContent,initCameras,initPanorama,initTwin,initSimulation];
+for(const init of initializers){try{init();}catch(error){console.error(`[${init.name}]`,error);}}
