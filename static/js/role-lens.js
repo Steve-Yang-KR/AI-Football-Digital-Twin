@@ -8,22 +8,36 @@ trader:{icon:'📈',name:'Trader',mission:'Interpret validated development trend
 federation:{icon:'🌐',name:'League / Federation',mission:'Connect grassroots development, standards and interoperable football services.',primaryTwin:'Program + Ecosystem Twins',workspace:'Governance and scale',focus:['Program outcomes','Data standards','Research validation','Regional participation'],decisions:['Which programs work?','Where are standards missing?','How should trusted data interoperate?'],access:'Aggregated, policy-governed ecosystem intelligence',recommended:['overview','workflow','trust','architecture']}
 };
 
-function lensMarkup(){return `<section class="stakeholder-lens" aria-label="Stakeholder role lens"><div class="lens-heading"><div><small>STAKEHOLDER LENS</small><b>View the same Digital Twin platform through a different role.</b></div><span id="lensCurrent"></span></div><div class="lens-tabs" id="lensTabs">${Object.entries(stakeholders).map(([id,r])=>`<button data-lens="${id}"><span>${r.icon}</span>${r.name}</button>`).join('')}</div><div class="lens-panel"><div class="lens-summary"><small id="lensWorkspace"></small><h3 id="lensMission"></h3><p><b id="lensTwin"></b> is the primary decision object for this role.</p></div><div><small>ROLE FOCUS</small><ul id="lensFocus"></ul></div><div><small>KEY DECISIONS</small><ul id="lensDecisions"></ul></div><div><small>PERMISSION BOUNDARY</small><p id="lensAccess"></p></div></div></section>`}
+function lensMarkup(){return `<section class="stakeholder-lens compact" aria-label="Stakeholder role lens">
+<div class="lens-bar">
+<div class="lens-identity"><span class="lens-kicker">VIEWING AS</span><button class="lens-current" id="lensRoleToggle" aria-expanded="false"><span id="lensCurrent"></span><i>⌄</i></button><span class="lens-context" id="lensContext"></span></div>
+<button class="lens-detail-toggle" id="lensDetailToggle" aria-expanded="false">Role details</button>
+</div>
+<div class="lens-tabs" id="lensTabs" hidden>${Object.entries(stakeholders).map(([id,r])=>`<button data-lens="${id}"><span>${r.icon}</span>${r.name}</button>`).join('')}</div>
+<div class="lens-panel" id="lensPanel" hidden><div class="lens-summary"><small id="lensWorkspace"></small><h3 id="lensMission"></h3><p><b id="lensTwin"></b> is the primary decision object.</p></div><div><small>ROLE FOCUS</small><ul id="lensFocus"></ul></div><div><small>KEY DECISIONS</small><ul id="lensDecisions"></ul></div><div><small>PERMISSION BOUNDARY</small><p id="lensAccess"></p></div></div>
+</section>`}
 
 export function initRoleLens(){
  const top=document.querySelector('.top');
  if(!top)return;
  top.insertAdjacentHTML('afterend',lensMarkup());
+ const lens=document.querySelector('.stakeholder-lens');
+ const tabsWrap=document.getElementById('lensTabs');
+ const panel=document.getElementById('lensPanel');
+ const roleToggle=document.getElementById('lensRoleToggle');
+ const detailToggle=document.getElementById('lensDetailToggle');
  const tabs=[...document.querySelectorAll('[data-lens]')];
  const nav=[...document.querySelectorAll('.nav button')];
  const heroText=document.querySelector('#overview .hero p');
  const originalHero=heroText?.textContent||'';
+ function closeMenus(){tabsWrap.hidden=true;roleToggle.setAttribute('aria-expanded','false');}
  function apply(id){
   const r=stakeholders[id]||stakeholders.player;
   document.body.dataset.stakeholder=id;
   localStorage.setItem('footballStakeholder',id);
   tabs.forEach(b=>b.classList.toggle('active',b.dataset.lens===id));
   document.getElementById('lensCurrent').textContent=`${r.icon} ${r.name}`;
+  document.getElementById('lensContext').textContent=`${r.workspace} · ${r.primaryTwin}`;
   document.getElementById('lensWorkspace').textContent=r.workspace.toUpperCase();
   document.getElementById('lensMission').textContent=r.mission;
   document.getElementById('lensTwin').textContent=r.primaryTwin;
@@ -33,8 +47,11 @@ export function initRoleLens(){
   nav.forEach(b=>b.classList.toggle('role-recommended',r.recommended.includes(b.dataset.view)));
   if(heroText)heroText.textContent=`${r.mission} ${originalHero}`;
   document.querySelectorAll('.role-card').forEach(card=>card.classList.toggle('selected-role',card.textContent.includes(r.name.split(' / ')[0])));
+  closeMenus();
  }
+ roleToggle.onclick=()=>{const opening=tabsWrap.hidden;tabsWrap.hidden=!opening;roleToggle.setAttribute('aria-expanded',String(opening));};
+ detailToggle.onclick=()=>{const opening=panel.hidden;panel.hidden=!opening;detailToggle.setAttribute('aria-expanded',String(opening));detailToggle.textContent=opening?'Hide details':'Role details';lens.classList.toggle('expanded',opening);};
  tabs.forEach(b=>b.onclick=()=>apply(b.dataset.lens));
- document.addEventListener('click',e=>{const card=e.target.closest('.role-card');if(!card)return;const text=card.textContent;const match=Object.entries(stakeholders).find(([,r])=>text.includes(r.name.split(' / ')[0]));if(match)apply(match[0]);});
+ document.addEventListener('click',e=>{if(!lens.contains(e.target))closeMenus();const card=e.target.closest('.role-card');if(!card)return;const text=card.textContent;const match=Object.entries(stakeholders).find(([,r])=>text.includes(r.name.split(' / ')[0]));if(match)apply(match[0]);});
  apply(localStorage.getItem('footballStakeholder')||'player');
 }
