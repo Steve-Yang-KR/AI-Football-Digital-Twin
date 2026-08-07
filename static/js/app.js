@@ -5,6 +5,7 @@ import {initTwin} from './twin.js';
 import {initSimulation} from './simulation.js';
 import {initRoleLens} from './role-lens.js';
 import {initHologramAnalysis} from './hologram-analysis.js';
+import {initSmallPlayerDetection} from './small-player-detection.js';
 import {initPanoramaTwin} from './panorama-twin.js';
 import {initLive3DTwin} from './live-3d-twin.js';
 import {initHomepageV11Merge} from './homepage-v11-merge.js';
@@ -14,5 +15,5 @@ for(const href of ['/static/css/homepage-v2-merge.css','/static/css/role-lens.cs
  const link=document.createElement('link');link.rel='stylesheet';link.href=href;document.head.appendChild(link);
 }
 
-const initializers=[initNavigation,initContent,initHomepageV11Merge,initRoleLens,initCameras,initPanorama,initHologramAnalysis,initPanoramaTwin,initLive3DTwin,initPanoramaWorkspaceV2,initTwin,initSimulation];
+const initializers=[initNavigation,initContent,initHomepageV11Merge,initRoleLens,initCameras,initPanorama,initHologramAnalysis,initSmallPlayerDetection,initPanoramaTwin,initLive3DTwin,initPanoramaWorkspaceV2,initTwin,initSimulation];
 for(const init of initializers){try{init();}catch(error){console.error(`[${init.name}]`,error);}}
