@@ -7,10 +7,11 @@ import {initRoleLens} from './role-lens.js';
 import {initHologramAnalysis} from './hologram-analysis.js';
 import {initPanoramaTwin} from './panorama-twin.js';
 import {initLive3DTwin} from './live-3d-twin.js';
+import {initHomepageV11Merge} from './homepage-v11-merge.js';
 
-for(const href of ['/static/css/homepage-v2-merge.css','/static/css/role-lens.css','/static/css/hologram-analysis.css','/static/css/panorama-twin.css','/static/css/live-3d-twin.css']){
+for(const href of ['/static/css/homepage-v2-merge.css','/static/css/role-lens.css','/static/css/hologram-analysis.css','/static/css/panorama-twin.css','/static/css/live-3d-twin.css','/static/css/homepage-v11-merge.css']){
  const link=document.createElement('link');link.rel='stylesheet';link.href=href;document.head.appendChild(link);
 }
 
-const initializers=[initNavigation,initContent,initRoleLens,initCameras,initPanorama,initHologramAnalysis,initPanoramaTwin,initLive3DTwin,initTwin,initSimulation];
+const initializers=[initNavigation,initContent,initHomepageV11Merge,initRoleLens,initCameras,initPanorama,initHologramAnalysis,initPanoramaTwin,initLive3DTwin,initTwin,initSimulation];
 for(const init of initializers){try{init();}catch(error){console.error(`[${init.name}]`,error);}}
