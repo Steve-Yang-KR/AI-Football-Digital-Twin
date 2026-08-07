@@ -1,1 +1,64 @@
-export function initPanorama(){const roles=['LEFT','CENTER','RIGHT'];const defaults={LEFT:{x:-510,y:0,scale:1.08,rotation:0,opacity:1},CENTER:{x:0,y:0,scale:1.08,rotation:0,opacity:1},RIGHT:{x:510,y:0,scale:1.08,rotation:0,opacity:1}};let pano=JSON.parse(localStorage.getItem('panoV4')||'null')||structuredClone(defaults);const canvas=document.getElementById('panoramaCanvas'),ctx=canvas.getContext('2d'),panoControls=document.getElementById('panoControls'),panoStatus=document.getElementById('panoStatus'),panoBox=document.getElementById('panoBox');function buildControls(){panoControls.innerHTML=roles.map(r=>`<div class="control"><b>${r}</b>${['x','y','scale','rotation','opacity'].map(k=>{const c={x:[-900,900,1],y:[-300,300,1],scale:[.4,2,.01],rotation:[-25,25,.1],opacity:[.2,1,.01]}[k];return `<div class="row"><span>${k}</span><input type="range" data-r="${r}" data-k="${k}" min="${c[0]}" max="${c[1]}" step="${c[2]}" value="${pano[r][k]}"><b>${pano[r][k]}</b></div>`}).join('')}</div>`).join('');panoControls.querySelectorAll('input').forEach(i=>i.oninput=()=>{pano[i.dataset.r][i.dataset.k]=+i.value;i.nextElementSibling.textContent=i.value})}buildControls();document.getElementById('resetPano').onclick=()=>{pano=structuredClone(defaults);buildControls()};document.getElementById('savePano').onclick=()=>localStorage.setItem('panoV4',JSON.stringify(pano));document.getElementById('fullPano').onclick=()=>panoBox.requestFullscreen?.();let frames=0,last=performance.now();function draw(now){ctx.fillStyle='#06121e';ctx.fillRect(0,0,canvas.width,canvas.height);let n=0;roles.forEach(r=>{const v=document.getElementById('stream'+r),c=pano[r];if(v.readyState>=2&&v.videoWidth){n++;ctx.save();ctx.globalAlpha=c.opacity;ctx.translate(canvas.width/2+c.x,canvas.height/2+c.y);ctx.rotate(c.rotation*Math.PI/180);ctx.scale(c.scale,c.scale);ctx.drawImage(v,-480,-270,960,540);ctx.restore()}});frames++;if(now-last>1000){panoStatus.textContent=`${n} cameras · ${Math.round(frames*1000/(now-last))} FPS`;frames=0;last=now}requestAnimationFrame(draw)}requestAnimationFrame(draw)}
+export function initPanorama(){
+ const roles=['LEFT','CENTER','RIGHT'];
+ const canvas=document.getElementById('panoramaCanvas'),ctx=canvas.getContext('2d'),panoControls=document.getElementById('panoControls'),panoStatus=document.getElementById('panoStatus'),panoBox=document.getElementById('panoBox');
+ if(!canvas||!ctx)return;
+
+ function activeStreams(){
+  return roles.map(role=>({role,video:document.getElementById('stream'+role)})).filter(({video})=>video&&video.readyState>=2&&video.videoWidth>0&&video.videoHeight>0);
+ }
+
+ function buildControls(){
+  if(!panoControls)return;
+  panoControls.innerHTML=`<div class="control"><b>ADAPTIVE PANORAMA</b><div class="row"><span>1 camera</span><b>Full canvas</b></div><div class="row"><span>2 cameras</span><b>Equal 50 / 50</b></div><div class="row"><span>3 cameras</span><b>Equal thirds</b></div><div class="row"><span>Fit mode</span><b>Full frame</b></div></div>`;
+ }
+ buildControls();
+
+ const reset=document.getElementById('resetPano'),save=document.getElementById('savePano'),full=document.getElementById('fullPano');
+ if(reset)reset.onclick=()=>buildControls();
+ if(save)save.onclick=()=>localStorage.setItem('panoramaLayoutV5','adaptive');
+ if(full)full.onclick=()=>panoBox?.requestFullscreen?.();
+
+ function drawContained(video,x,y,w,h){
+  const vw=video.videoWidth,vh=video.videoHeight;
+  if(!vw||!vh)return;
+  const scale=Math.min(w/vw,h/vh);
+  const dw=vw*scale,dh=vh*scale;
+  const dx=x+(w-dw)/2,dy=y+(h-dh)/2;
+  ctx.fillStyle='#020b13';ctx.fillRect(x,y,w,h);
+  ctx.drawImage(video,dx,dy,dw,dh);
+ }
+
+ function label(role,x,y,w){
+  ctx.fillStyle='rgba(2,11,19,.72)';ctx.fillRect(x+10,y+10,92,30);
+  ctx.fillStyle='#eafcff';ctx.font='700 14px system-ui';ctx.textAlign='left';ctx.fillText(role,x+22,y+30);
+  ctx.fillStyle='#22c55e';ctx.beginPath();ctx.arc(x+w-22,y+24,5,0,Math.PI*2);ctx.fill();
+ }
+
+ let frames=0,last=performance.now();
+ function draw(now){
+  const streams=activeStreams(),n=streams.length,W=canvas.width,H=canvas.height;
+  ctx.fillStyle='#06121e';ctx.fillRect(0,0,W,H);
+
+  if(n===0){
+   ctx.fillStyle='rgba(220,245,255,.8)';ctx.font='700 20px system-ui';ctx.textAlign='center';ctx.fillText('Connect a Live Camera to start Panorama',W/2,H/2);
+  }else{
+   const cellW=W/n;
+   streams.forEach(({role,video},i)=>{
+    const x=i*cellW;
+    drawContained(video,x,0,cellW,H);
+    if(i>0){ctx.strokeStyle='rgba(105,220,255,.45)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    label(role,x,0,cellW);
+   });
+  }
+
+  frames++;
+  if(now-last>1000){
+   const fps=Math.round(frames*1000/(now-last));
+   const layout=n===1?'1 camera · full':n===2?'2 cameras · equal halves':n===3?'3 cameras · equal thirds':'waiting';
+   if(panoStatus)panoStatus.textContent=`${layout} · ${fps} FPS`;
+   frames=0;last=now;
+  }
+  requestAnimationFrame(draw);
+ }
+ requestAnimationFrame(draw);
+}
