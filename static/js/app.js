@@ -1,3 +1,4 @@
+import './person-ai-preload.js';
 import {initNavigation,initContent} from './content.js';
 import {initCameras} from './cameras.js';
 import {initPanorama} from './panorama.js';
