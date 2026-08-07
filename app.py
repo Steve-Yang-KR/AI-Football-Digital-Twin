@@ -14,8 +14,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from ai_tracker import football_tracker
+
 BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="Football Digital Twin OS", version="2.3.0")
+app = FastAPI(title="Football Digital Twin OS", version="2.4.0")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -82,6 +84,39 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "football-digital-twin-os"}
 
 
+@app.get("/api/ai/status")
+async def ai_status() -> dict[str, Any]:
+    status = football_tracker.status()
+    return {
+        "available": status.available,
+        "engine": "ultralytics-yolo-bytetrack",
+        "model": status.model,
+        "tracker": status.tracker,
+        "reason": status.reason,
+        "mode": "server" if status.available else "browser-fallback",
+    }
+
+
+@app.post("/api/ai/track")
+async def ai_track(request: Request) -> dict[str, Any]:
+    status = football_tracker.status()
+    if not status.available:
+        raise HTTPException(status_code=503, detail=status.reason or "Server AI unavailable")
+    frame = await request.body()
+    if not frame:
+        raise HTTPException(status_code=400, detail="JPEG frame body is required")
+    if len(frame) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Frame is too large")
+    try:
+        result = await asyncio.to_thread(football_tracker.track_jpeg, frame)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Tracking failed: {exc}") from exc
+    result["timestamp"] = datetime.now(timezone.utc).isoformat()
+    return result
+
+
 @app.post("/api/sessions")
 async def create_session(request: Request) -> dict[str, Any]:
     return new_session(str(request.base_url))
@@ -120,8 +155,10 @@ async def signal_socket(websocket: WebSocket, code: str, role: str, peer_type: s
     peers = SIGNAL_PEERS.setdefault(code, {r: {} for r in ROLES})[role]
     old = peers.get(peer_type)
     if old:
-        try: await old.close(code=4000)
-        except Exception: pass
+        try:
+            await old.close(code=4000)
+        except Exception:
+            pass
     peers[peer_type] = websocket
     other_type = "viewer" if peer_type == "phone" else "phone"
     other = peers.get(other_type)
@@ -132,20 +169,25 @@ async def signal_socket(websocket: WebSocket, code: str, role: str, peer_type: s
         while True:
             message = await websocket.receive_json()
             target = peers.get(other_type)
-            if target: await target.send_json(message)
+            if target:
+                await target.send_json(message)
             if peer_type == "phone" and message.get("type") == "streaming":
                 SESSIONS[code]["cameras"][role]["streaming"] = bool(message.get("value"))
     except WebSocketDisconnect:
         pass
     finally:
-        if peers.get(peer_type) is websocket: peers.pop(peer_type, None)
+        if peers.get(peer_type) is websocket:
+            peers.pop(peer_type, None)
         if peer_type == "phone":
             camera = SESSIONS.get(code, {}).get("cameras", {}).get(role)
-            if camera: camera["connected"] = camera["streaming"] = False
+            if camera:
+                camera["connected"] = camera["streaming"] = False
         other = peers.get(other_type)
         if other:
-            try: await other.send_json({"type": "peer-left", "peer": peer_type})
-            except Exception: pass
+            try:
+                await other.send_json({"type": "peer-left", "peer": peer_type})
+            except Exception:
+                pass
 
 
 @app.post("/api/simulate")
