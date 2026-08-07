@@ -3,7 +3,7 @@ const COCO_JSDELIVR='https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.
 const TF_UNPKG='https://unpkg.com/@tensorflow/tfjs@4.22.0/dist/tf.min.js';
 const COCO_UNPKG='https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js';
 
-function loadWithTimeout(src, timeout=9000){
+function loadWithTimeout(src, timeout=5000){
   return new Promise((resolve,reject)=>{
     const existing=[...document.scripts].find(s=>s.src===src);
     if(existing && (existing.dataset.loaded==='1' || existing.readyState==='complete')) return resolve();
@@ -13,7 +13,7 @@ function loadWithTimeout(src, timeout=9000){
     s.addEventListener('load',()=>done(true),{once:true});
     s.addEventListener('error',()=>done(false,new Error(`Failed to load ${src}`)),{once:true});
     const timer=setTimeout(()=>done(false,new Error(`Timed out loading ${src}`)),timeout);
-    if(!existing){s.src=src;s.async=false;document.head.appendChild(s);}
+    if(!existing){s.src=src;s.async=true;document.head.appendChild(s);}
   });
 }
 
@@ -26,29 +26,37 @@ function addLoadedMarker(src){
   document.head.appendChild(marker);
 }
 
+function timeoutPromise(promise,ms,label){
+  return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${label} timed out`)),ms))]);
+}
+
 async function preloadPersonAI(){
+  let scriptsReady=false;
   try{
     if(!window.tf) await loadWithTimeout(TF_JSDELIVR);
     if(!window.cocoSsd) await loadWithTimeout(COCO_JSDELIVR);
-    return true;
+    scriptsReady=!!(window.tf&&window.cocoSsd);
   }catch(primaryError){
     console.warn('[person-ai] primary CDN failed, trying fallback',primaryError);
     try{
       if(!window.tf) await loadWithTimeout(TF_UNPKG);
       if(!window.cocoSsd) await loadWithTimeout(COCO_UNPKG);
-      if(window.tf && window.cocoSsd){
-        addLoadedMarker(TF_JSDELIVR);
-        addLoadedMarker(COCO_JSDELIVR);
-        return true;
-      }
+      scriptsReady=!!(window.tf&&window.cocoSsd);
     }catch(fallbackError){
       console.error('[person-ai] fallback CDN failed',fallbackError);
     }
   }
+
+  if(scriptsReady && window.cocoSsd?.load && !window.cocoSsd.__timeoutWrapped){
+    const originalLoad=window.cocoSsd.load.bind(window.cocoSsd);
+    window.cocoSsd.load=(options)=>timeoutPromise(originalLoad(options),12000,'COCO-SSD model load');
+    window.cocoSsd.__timeoutWrapped=true;
+  }
+
   addLoadedMarker(TF_JSDELIVR);
   addLoadedMarker(COCO_JSDELIVR);
-  return false;
+  return scriptsReady;
 }
 
-window.__personAIPreloadReady=await preloadPersonAI();
-export const personAIPreloadReady=window.__personAIPreloadReady;
+export const personAIPreloadPromise=preloadPersonAI();
+window.__personAIPreloadPromise=personAIPreloadPromise;
