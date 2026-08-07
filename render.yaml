@@ -2,7 +2,16 @@ services:
   - type: web
     name: football-digital-twin-os
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements-ai.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     autoDeploy: true
+    envVars:
+      - key: FOOTBALL_YOLO_MODEL
+        value: yolo11n.pt
+      - key: FOOTBALL_TRACKER
+        value: bytetrack.yaml
+      - key: FOOTBALL_YOLO_CONF
+        value: "0.18"
+      - key: FOOTBALL_YOLO_IMGSZ
+        value: "1280"
